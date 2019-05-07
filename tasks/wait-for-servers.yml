@@ -1,0 +1,9 @@
+---
+
+- name: Wait for Servers to start
+  wait_for:
+    host: '{{ item }}'
+    port: 22
+    timeout: 500
+    state: started
+  with_items: "{{ groups['my_app_servers'] }}"
