@@ -1,1 +1,112 @@
+---
+- name: Set database facts
+  set_fact:
+    rds_instance_name: "{{ db_instance_name | default('{{ application_name }}-{{ servers.tooling_zone }}') }}"
+    rds_password_file: "/tmp/password_rds_teamcity_{{ tooling_environment }}"
 
+- name: Set database cluster facts
+  set_fact:
+    rds_cluster_name: '{{ rds_instance_name }}-cluster'
+    kms_key_id: "{{ rds_encryption_key | default('{{ rds_default_encryption_key }}') }}"
+
+- name: Check cluster exists
+  command: aws rds describe-db-clusters --region {{ aws_region }} --db-cluster-identifier {{ rds_cluster_name }}
+  register: cluster_exists
+  ignore_errors: yes
+
+- name: create database password
+  set_fact:
+    rds_password: "{{ lookup('password', rds_password_file + ' length=15') }}"
+  # when: cluster_exists | failed
+
+- debug:
+    var: rds_password
+    verbosity: 1
+  # when: cluster_exists | failed
+
+- debug:
+    var: cluster_exists
+    verbosity: 1
+
+- debug:
+    var: rds_instance_name
+    verbosity: 1
+
+- debug:
+    var: kms_key_id
+    verbosity: 1
+
+- name: Create Aurora cluster
+  command: >
+    aws rds create-db-cluster
+    --region {{ aws_region }}
+    --db-cluster-identifier {{ rds_cluster_name }}
+    --database-name teamcity
+    --engine aurora
+    --port {{ rds_mysql_port }}
+    --master-username {{ rds_username }}
+    --master-user-password {{ rds_password }}
+    --vpc-security-group-ids {{ aws_security_group.SecurityGroups[0].GroupId }}
+    --db-subnet-group-name {{ rds_subnet_group }}
+    --storage-encrypted
+    --preferred-maintenance-window Sun:00:00-Sun:00:30
+    --preferred-backup-window 01:00-01:30
+    --backup-retention-period {{ rds_backup_retention }}
+    --tags Key=controlled-by,Value=Ansible Key=teamcity-environment,Value={{ tooling_environment }}
+    --kms-key-id {{ kms_key_id }}
+  register: created_cluster
+  when: cluster_exists | failed # create if cluster doesn't exist (check failed)
+
+- name: Check instance exists
+  command: aws rds describe-db-instances --region {{ aws_region }} --db-instance-identifier {{ rds_instance_name }}
+  register: instance_exists
+  ignore_errors: yes
+
+- name: Create database instance
+  command: >
+    aws rds create-db-instance
+    --db-cluster-identifier {{ rds_cluster_name }}
+    --engine aurora
+    --region {{ aws_region }}
+    --db-instance-identifier {{ rds_instance_name }}
+    --db-instance-class db.r3.large
+    --db-subnet-group-name {{ rds_subnet_group }}
+    --tags Key=controlled-by,Value=Ansible Key=teamcity-environment,Value={{ tooling_environment }}
+    --copy-tags-to-snapshot
+  register: created_db
+  when: instance_exists | failed # create if instance doesn't exist (check failed)
+
+- name: Obtain cluster details
+  command: aws rds describe-db-clusters --region {{ aws_region }} --db-cluster-identifier {{ rds_cluster_name }}
+  register: describe_db_cluster
+
+- name: Set RDS cluster fact
+  set_fact:
+    rds_cluster: '{{ describe_db_cluster.stdout | from_json }}'
+
+- debug:
+    var: rds_cluster
+
+- name: Set database endpoint
+  set_fact:
+    teamcity_database_endpoint: '{{ rds_cluster.DBClusters[0].Endpoint }}'
+
+- name: Generate Database endpoint if one not found
+  set_fact:
+    teamcity_database_endpoint: '{{ rds_cluster_name }}.cluster-cyybpzdcdqjm.{{ aws_region }}.rds.amazonaws.com'
+  when: teamcity_database_endpoint is not defined
+
+- name: Set final database facts
+  set_fact:
+      teamcity_database_username: '{{ rds_username }}'
+      teamcity_database_port: '{{ rds_mysql_port }}'
+      teamcity_database_password: '{{ rds_password }}'
+
+- name: Set facts if database was created
+  set_fact:
+    teamcity_new_database_created: yes
+  when: created_cluster | changed
+
+- debug:
+    var: teamcity_database_endpoint
+    verbosity: 1
