@@ -1,1 +1,26 @@
+---
+- name: Create APP-SERVER IAM Instance Role
+  iam:
+    iam_type: role
+    name: '{{ ec2_iam_instance_role_name }}'
+    region: '{{ aws_region }}'
+    state: present
 
+- name: APP-SERVER EC2 CloudWatch Policy
+  iam_policy:
+    region: '{{ aws_region }}'
+    iam_type: role
+    iam_name: '{{ ec2_iam_instance_role_name }}'
+    policy_name: cloudwatch_logs
+    policy_json: '{
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": ["logs:CreateLogGroup","logs:CreateLogStream","logs:PutLogEvents","logs:DescribeLogStreams","logs:DescribeLogGroups"],
+          "Resource": ["arn:aws:logs:*:*:*"]
+        }
+      ]
+    }'
+    skip_duplicates: yes
+    state: present
