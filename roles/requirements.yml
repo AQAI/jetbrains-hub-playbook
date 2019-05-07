@@ -1,0 +1,6 @@
+---
+- src: git+https://github.icaptools.com/ansible/ubuntu_xenial_prepare.git
+  version: master
+
+- src: git+https://github.icaptools.com/ansible/icap_common.git
+  version: master
