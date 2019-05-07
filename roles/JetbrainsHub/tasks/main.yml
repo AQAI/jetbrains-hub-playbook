@@ -1,0 +1,96 @@
+---
+- name: Set installation facts
+  set_fact:
+    teamcity_search_parameters: r={{ nexus.teamcity.repositoryId }}&g={{ nexus.teamcity.groupId }}&a={{ nexus.teamcity.artifactId }}&v={{ nexus.teamcity.version }}&p={{ nexus.teamcity.packaging }}
+    jdbc_search_paramters: r={{ nexus.jdbc.repositoryId }}&g={{ nexus.jdbc.groupId }}&a={{ nexus.jdbc.artifactId }}&v={{ nexus.jdbc.version }}&p={{ nexus.jdbc.packaging }}
+
+- name: Create directories
+  file:
+    path: '{{ item }}'
+    mode: 0755
+    owner: icap
+    group: icap
+    state: directory
+  with_items:
+    - '{{ base_directory }}'
+    - '{{ install_directory }}'
+    - '{{ data_directory }}'
+    - '{{ data_directory }}/lib/jdbc'
+    - '{{ data_directory }}/config'
+
+- name: check current installation softlink
+  stat:
+    path: '{{ installation_softlink }}'
+  register: soft_directory_stat
+
+- name: Set existing installation directory
+  set_fact:
+    existing_install_directory: '{{ soft_directory_stat.stat.lnk_source }}'
+  when: soft_directory_stat.stat.exists
+
+- name: Install Teamcity
+  unarchive:
+    src: '{{ nexus.base_url }}?{{ teamcity_search_parameters }}'
+    dest: '{{ install_directory }}'
+    creates: '{{ install_directory }}/TeamCity/conf/web.xml'
+    owner: icap
+    group: icap
+    copy: no
+  register: install_teamcity
+
+- name: Shutdown service when existing installation exists
+  service:
+    name: teamcity
+    state: stopped
+  when:
+    - existing_install_directory is defined # 'is defined' and '| changed' do not work together
+    - install_teamcity | changed
+  ignore_errors: yes
+  register: shutdown_service
+
+- name: Download JDBC driver
+  get_url:
+    url='{{ nexus.base_url }}?{{ jdbc_search_paramters }}'
+    dest='{{ data_directory }}/lib/jdbc'
+  register: download_mysql_connector
+
+# install JDK
+- include: jdk.yml
+
+#set JAVA_HOME, Xmx, datapath, dbprop, systemd
+- include: set_tc_config.yml
+
+- name: Create symlink on installation directory # for cloudwatch_logs
+  file:
+    src: '{{ install_directory }}/TeamCity'
+    dest: '{{ installation_softlink }}'
+    state: link
+
+# Wait up to 10 minutes for database to be ready
+- name: Wait for database instance to come up
+  wait_for:
+    host: '{{ hostvars.localhost.teamcity_database_endpoint }}'
+    port: '{{ hostvars.localhost.teamcity_database_port }}'
+    timeout: 1400
+    connect_timeout: 3
+    search_regex: .*
+    state: started
+  when: teamcity_new_database_created is defined
+
+- name: Reload teamcity
+  service:
+    name=teamcity
+    state=restarted
+    enabled=yes
+  when: ( install_teamcity | changed )
+    or ( shutdown_service | changed )
+    or ( download_mysql_connector | changed )
+    or ( jdk_installed | changed )
+    or ( java_home | changed )
+    or ( teamcity_mem | changed )
+    or ( create_teamcity_db_prop | changed )
+    or ( teamcity_service | changed )
+    or ( upstart | changed)
+
+- debug:
+    msg: 'Open https://{{ application_name }}-server-{{ tooling_environment }}-{{ aws_region }}.icaptools.com to complete installation'
