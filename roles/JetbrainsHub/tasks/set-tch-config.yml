@@ -1,1 +1,49 @@
+---
 
+- name: Set JAVA_HOME
+  lineinfile:
+    dest: '{{ install_directory }}/TeamCity/bin/setclasspath.sh'
+    line: 'export JAVA_HOME="/usr/lib/jvm/java-8-openjdk-amd64"'
+    insertafter: "^# ------------------------------------"
+    create: no
+  register: java_home
+
+- name: Set TEAMCITY Memory opts
+  lineinfile:
+    dest: '{{ install_directory }}/TeamCity/bin/teamcity-server.sh'
+    line: '{{ item }}'
+    insertafter: "^# ------------------------------------"
+    create: no
+  with_items:
+    - 'export TEAMCITY_DATA_PATH={{ base_directory }}/.BuildServer'
+    - 'TEAMCITY_SERVER_MEM_OPTS="-Xmx12g -Xms8g"'
+  register: teamcity_mem
+
+- name: Create Teamcity database properties
+  template:
+    src=database.properties.j2
+    dest='{{ base_directory }}/.BuildServer/config/database.properties'
+    mode=0664
+    owner=icap
+    group=icap
+  register: create_teamcity_db_prop
+
+- name: Create run script
+  template:
+    src=teamcity.service.j2
+    dest=/lib/systemd/system/teamcity.service
+    owner=root
+    group=root
+    mode=644
+  when: (ansible_distribution == 'Ubuntu') and (ansible_distribution_major_version|int >= 15)
+  register: teamcity_service
+
+- name: notify systemd of config changes
+  command: systemctl daemon-reload
+  when: teamcity_service.changed == True
+
+- name: Create run script
+  template: src=teamcity.j2 dest=/etc/init.d/teamcity owner=root group=root mode=755
+  when: teamcity_service is not defined
+  register: upstart
+© 2019 GitHub, Inc.
