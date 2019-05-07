@@ -1,1 +1,11 @@
+---
+ec2_iam_instance_role_name: "{{ application_name }}-server_instance_role"
+ec2_volume_size: 12
 
+aws_loadbalancer_ssl_certificate_id: arn:aws:iam::707651310077:server-certificate/wildcard.icaptools.com
+
+rds_backup_retention: 14 # not supported by Aurora
+rds_username: mysql_admin
+rds_subnet_group: default-vpc-8365f5e6
+rds_default_encryption_key: 4ee1e268-0b0e-42ff-b5bd-1e74b2848c63
+rds_mysql_port: 3306
