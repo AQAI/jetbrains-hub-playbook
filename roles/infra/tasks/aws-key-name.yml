@@ -1,1 +1,6 @@
+---
 
+- name: Set AWS access key name if one not provided
+  set_fact:
+    aws_key_name: 'icap-fusion-tools'
+  when: aws_key_name is not defined
