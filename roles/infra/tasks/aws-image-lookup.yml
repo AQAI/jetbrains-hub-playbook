@@ -1,1 +1,20 @@
+---
 
+- name: Find Latest Ubuntu Linux 16.04 LTS AMI
+  ec2_ami_find:
+    region: '{{ aws_region }}'
+    owner: '099720109477'
+    name: "ubuntu/images/hvm-ssd/ubuntu-xenial-16.04-amd64-server*"
+    sort: name
+    sort_order: descending
+    sort_end: 1
+    state: available
+    no_result_action: fail
+  register: aws_ami_images
+  # when: ec2_ami_id is not defined
+
+- debug: var=aws_ami_images
+
+- set_fact:
+    ec2_ami_id: '{{ aws_ami_images.results[0].ami_id }}'
+  when: not (aws_ami_images | skipped)
