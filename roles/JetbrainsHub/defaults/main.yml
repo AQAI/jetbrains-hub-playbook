@@ -1,1 +1,25 @@
+---
+nexus:
+  base_url: https://nexus.icaptools.com/nexus/service/local/artifact/maven/redirect
 
+#TC Repository facts
+  teamcity:
+    repositoryId: software
+    groupId: com.jetbrains
+    artifactId: teamcity
+    version: "{{ version | default('10.0') }}"
+    packaging: tar.gz
+
+#JDBC Repository facts
+  jdbc:
+    repositoryId: central
+    groupId: mysql
+    artifactId: mysql-connector-java
+    version: "{{ version | default('5.1.38') }}"
+    packaging: jar
+
+#TeamCity facts
+base_directory: /opt/icap
+data_directory: /opt/icap/.BuildServer
+install_directory: '{{ base_directory }}/TeamCity-{{ nexus.teamcity.version}}'
+installation_softlink: '{{ base_directory }}/TeamCity'
