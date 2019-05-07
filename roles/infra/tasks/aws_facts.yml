@@ -1,0 +1,80 @@
+---
+
+# Find the correct AWS Ubuntu image to use for the region
+- include: aws_image_lookup.yml
+
+- name: Find Tooling VPC
+  ec2_vpc_net_facts:
+    region: '{{ aws_region }}'
+    filters:
+      "tag:tooling": "True"
+      "tag-key": '{{ tooling_environment }}'
+      state: available
+  register: aws_vpcs
+
+- debug:
+    var: aws_vpcs
+    verbosity: 2
+
+- name: Set AWS VPC Fact
+  set_fact:
+    aws_vpc_id: '{{ aws_vpcs.vpcs[0].id }}'
+  when: aws_vpcs.vpcs | count > 0
+
+- name: Get AWS Zone Subnets
+  ec2_vpc_subnet_facts:
+    region: '{{ aws_region }}'
+    filters:
+      "tag-key": "{{ tooling_environment }}"
+      "tag:zone": "{{ servers.tooling_zone }}"
+      availabilityZone: '{{ aws_region }}{{ item }}'
+      "vpc-id": '{{ aws_vpc_id }}'
+      state: available
+  with_items:
+    - '{{ servers.subnets }}'
+  register: aws_subnets
+  when: aws_vpc_id is defined
+
+- debug:
+    var: aws_subnets
+    verbosity: 2
+
+- name: Get AWS Security Group
+  command: >
+    aws ec2 describe-security-groups
+    --region {{ aws_region }}
+    --filters
+    Name=tag-key,Values={{ tooling_environment }}
+    Name=tag:zone,Values={{ servers.tooling_zone }}
+    Name=vpc-id,Values={{ aws_vpc_id }}
+  register: describe_security_group
+  when: aws_vpc_id is defined
+  changed_when: False
+
+- name: Set Security Group Fact
+  set_fact:
+    aws_security_group: '{{ describe_security_group.stdout | from_json }}'
+  when: aws_vpc_id is defined
+
+- debug:
+    var: aws_security_group
+    verbosity: 2
+
+- name: Set AWS Facts
+  set_fact:
+    aws_security_group_id: '{{ aws_security_group.SecurityGroups[0].GroupId }}'
+    elb_subnets: []
+
+- debug:
+    var: aws_security_group_id
+    verbosity: 2
+
+- set_fact:
+    elb_subnets: "{{ elb_subnets }} + [ '{{ item.1.id }}' ]"
+  with_subelements:
+    - '{{ aws_subnets.results}}'
+    - subnets
+
+- debug:
+    var: elb_subnets
+    verbosity: 2
