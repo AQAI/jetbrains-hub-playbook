@@ -1,1 +1,15 @@
+[Unit]
+Description=Teamcity Server version {{ nexus.teamcity.version }}
+After=network.target
+Requires=network.target
 
+[Service]
+Type=forking
+PIDFile={{ installation_softlink }}/logs/teamcity.pid
+ExecStart={{ installation_softlink }}/bin/teamcity-server.sh start
+ExecStop={{ installation_softlink }}/bin/teamcity-server.sh stop
+User=icap
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
