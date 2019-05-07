@@ -1,0 +1,16 @@
+---
+
+- name: Fail if missing AWS Region
+  fail:
+    msg: "An 'aws_region' must be specified"
+  when: aws_region is not defined
+
+- name: Fail if missing Tooling Environment
+  fail:
+    msg: "A 'tooling_environment' must be specified"
+  when: tooling_environment is not defined
+
+- name: Fail if missing Application Name
+  fail:
+    msg: "A 'application_name' must be specified"
+  when: application_name is not defined
