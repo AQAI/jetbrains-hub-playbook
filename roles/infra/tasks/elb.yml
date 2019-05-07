@@ -1,1 +1,88 @@
+---
+
+- set_fact:
+    elb_name: "{{ application_name }}-server-{{ servers.tooling_zone }}"
+
+- name: Create APP-SERVER ELB
+  ec2_elb_lb:
+    region: '{{ aws_region }}'
+    name: '{{ elb_name }}'
+    scheme: internal
+    state: present
+    subnets: '{{ elb_subnets }}'
+    security_group_ids: '{{ aws_security_group_id }}'
+    listeners:
+      - protocol: https
+        load_balancer_port: 443
+        instance_protocol: http
+        instance_port: 8111
+        ssl_certificate_id: '{{ aws_loadbalancer_ssl_certificate_id }}'
+    health_check:
+      ping_protocol: http
+      ping_port: 8111
+      ping_path: '/'
+      response_timeout: 5
+      interval: 30
+      unhealthy_threshold: 8
+      healthy_threshold: 4
+    tags:
+      tooling-environment: '{{ tooling_environment }}'
+      controlled-by: Ansible
+      Environment: '{{ servers.tooling_zone }}'
+      application_name: '{{ application_name }}'
+      ansible-managed: true
+  ignore_errors: yes #TODO there is a bug in this in Ansible 2.1.0 around backend policies, if the ELB exists it is not a problem, for now the work around is to ignore the errors
+
+# TODO now we need to run again (with the exact same parameters above) to ensure
+# we have a valid configuration to use again later in the play
+- name: Create APP-SERVER ELB
+  ec2_elb_lb:
+    region: '{{ aws_region }}'
+    name: '{{ elb_name }}'
+    scheme: internal
+    state: present
+    subnets: '{{ elb_subnets }}'
+    security_group_ids: '{{ aws_security_group_id }}'
+    listeners:
+      - protocol: https
+        load_balancer_port: 443
+        instance_protocol: http
+        instance_port: 8111
+        ssl_certificate_id: '{{ aws_loadbalancer_ssl_certificate_id }}'
+    health_check:
+      ping_protocol: http
+      ping_port: 8111
+      ping_path: '/showAgreement.html'
+      response_timeout: 5
+      interval: 30
+      unhealthy_threshold: 8
+      healthy_threshold: 4
+      tags:
+        tooling-environment: '{{ tooling_environment }}'
+        controlled-by: Ansible
+        Environment: '{{ servers.tooling_zone }}'
+        application_name: '{{ application_name }}'
+        ansible-managed: true
+  register: app_elb
+
+- debug:
+    var: app_elb
+    verbosity: 2
+
+- name: Create APP-SERVER ELB DNS Entry
+  route53:
+    command: create
+    zone: icaptools.com
+    record: "{{ application_name }}-server-{{ tooling_environment }}-{{ aws_region }}.icaptools.com"
+    ttl: 60
+    type: CNAME
+    value: '{{ app_elb.elb.dns_name }}'
+    overwrite: yes
+© 2019 GitHub, Inc.
+Help
+Support
+API
+Training
+Blog
+About
 
