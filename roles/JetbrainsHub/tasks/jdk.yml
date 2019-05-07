@@ -1,1 +1,10 @@
+---
 
+- name: Install System JDK for Debian
+  apt:
+    name: openjdk-8-jdk-headless
+    update_cache: yes
+    cache_valid_time: 3600
+    state: present
+  when: ansible_os_family == 'Debian'
+  register: jdk_installed
