@@ -1,0 +1,32 @@
+---
+
+- hosts: localhost
+  tasks:
+    - include: tasks/validate_parameters.yml
+
+- hosts: localhost
+  roles:
+    - role: infra
+      servers:
+        role: "{{ application_name }}"
+        ec2_instance_type: m4.large
+        tooling_zone: green
+        subnets: ['a']
+        instance_count: 1
+#      server_port: 3000
+  tasks:
+    - include: tasks/wait_for_servers.yml
+  tags: infra
+
+- hosts: my_app_servers
+  gather_facts: no
+  become: yes
+  roles:
+    - role: ubuntu_xenial_prepare
+
+- hosts: my_app_servers
+  become: yes
+  roles:
+    - role: icap_common
+    - role: teamcity
+      teamcity_new_database_created: '{{ hostvars.localhost.teamcity_new_database_created }}'
