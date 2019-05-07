@@ -1,1 +1,8 @@
+---
 
+- include: aws_key_name.yml
+- include: aws_facts.yml
+- include: ec2_instance_profile.yml
+- include: database.yml
+- include: elb.yml
+- include: server.yml
